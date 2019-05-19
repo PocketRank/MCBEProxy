@@ -1,0 +1,13 @@
+{
+  "name": "mcbeproxy",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "https": "^1.0.0",
+    "http-proxy": "^1.17.0"
+  }
+}
