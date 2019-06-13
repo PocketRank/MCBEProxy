@@ -3,7 +3,28 @@ const fs = require("fs");
 const http = require('http');
 const https = require('https');
 const proxy = require('http-proxy');
+
+var wssProxy = proxy.createProxyServer({
+    ssl: {
+        key: fs.readFileSync(__dirname + '/ssl/private.key'),
+        cert: fs.readFileSync(__dirname + '/ssl/cert.pem'),
+        ca: fs.readFileSync(__dirname + '/ssl/ca.pem')
+    },
+    secure: false,
+    ws: true
+});
+
 http.createServer((req, res) => {
+    try {
+        let split = req.headers.host.split('.').reverse();
+        switch (split[1] + '.' + split[0]) {
+            case "minejs.me":
+                wssProxy.web(req, res, {target: 'https://127.0.0.1:8051'});
+                break;
+        }
+    } catch (e) {
+        res.end(e);
+    }
     res.writeHead(301, {Location: 'https://' + req.headers.host + req.url});
     res.end();
 }).listen(80, () => {
