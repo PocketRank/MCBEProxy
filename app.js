@@ -4,26 +4,17 @@ const http = require('http');
 const https = require('https');
 const proxy = require('http-proxy');
 
-var wssProxy = proxy.createProxyServer({
-    ssl: {
-        key: fs.readFileSync(__dirname + '/ssl/private.key'),
-        cert: fs.readFileSync(__dirname + '/ssl/cert.pem'),
-        ca: fs.readFileSync(__dirname + '/ssl/ca.pem')
-    },
-    secure: false,
-    ws: true
-});
-
 http.createServer((req, res) => {
-    try {
+    if (req.headers['upgrade'] === 'websocket') {
         let split = req.headers.host.split('.').reverse();
         switch (split[1] + '.' + split[0]) {
             case "minejs.me":
-                wssProxy.web(req, res, {target: 'https://127.0.0.1:8051'});
+                httpsProxy.web(req, res, {target: 'ws://127.0.0.1:8050'});
                 break;
+            default:
+                res.end();
+                return;
         }
-    } catch (e) {
-        res.end(e);
     }
     res.writeHead(301, {Location: 'https://' + req.headers.host + req.url});
     res.end();
@@ -36,8 +27,7 @@ var httpsProxy = proxy.createProxyServer({
         key: fs.readFileSync(__dirname + '/ssl/private.key'),
         cert: fs.readFileSync(__dirname + '/ssl/cert.pem'),
         ca: fs.readFileSync(__dirname + '/ssl/ca.pem')
-    },
-    secure: false
+    }
 });
 httpsProxy.on('proxyReq', function (proxyReq, req, res, options) {
     proxyReq.setHeader('X-Forwarded-For', (req.headers["X-Forwarded-For"] ||
@@ -45,8 +35,21 @@ httpsProxy.on('proxyReq', function (proxyReq, req, res, options) {
         '').split(',')[0] ||
         req.client.remoteAddress);
 });
+var wssProxy = proxy.createProxyServer({
+    ssl: {
+        key: fs.readFileSync(__dirname + '/ssl/private.key'),
+        cert: fs.readFileSync(__dirname + '/ssl/cert.pem'),
+        ca: fs.readFileSync(__dirname + '/ssl/ca.pem')
+    },
+    target: {
+        host: 'localhost',
+        port: 8051
+    },
+    ws: true,
+    secure: true
+});
 
-https.createServer({
+let https_server = https.createServer({
     key: fs.readFileSync(__dirname + '/ssl/private.key'),
     cert: fs.readFileSync(__dirname + '/ssl/cert.pem'),
     ca: fs.readFileSync(__dirname + '/ssl/ca.pem')
@@ -56,6 +59,17 @@ https.createServer({
     //minejs.me: 8051 (http is 8050)
 
     //console.log(req.headers.host);
+    if (req.headers['upgrade'] === 'websocket') {
+        let split = req.headers.host.split('.').reverse();
+        switch (split[1] + '.' + split[0]) {
+            case "minejs.me":
+                wssProxy.web(req, res);
+                break;
+            default:
+                res.end();
+                return;
+        }
+    }
     try {
         let split = req.headers.host.split('.').reverse();
         switch (split[1] + '.' + split[0]) {
@@ -76,6 +90,11 @@ https.createServer({
         res.end(e);
     }
 
-}).listen(443, () => {
+});
+https_server.on('upgrade', function (req, socket, head) {
+    console.log(req);
+    wssProxy.ws(req, socket, {target: 'wss://127.0.0.1:8051'});
+});
+https_server.listen(443, () => {
     console.log("listening on port 443");
 });
